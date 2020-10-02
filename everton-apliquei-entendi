@@ -1,0 +1,148 @@
+. Sobre cada funcionalidade implementada / técnicas de código;
+. CDD/ técnicas de código;
+. Sobre ser melhor estudante;
+
+ - Sobre cada fucionalidade implementada / técnicas de código;
+ 
+Autor: Criei a classe com os atributos, anotei como @Entity, coloquei ID, mesmo não sendo pedido, porque entendo que devo sempre pensar no banco de dados,
+coloquei uma @NotEmpty com uma mensagem de erro tratada, onde especifica quais campos são obrigatórios. 
+Neste arquivo aprendi lançar a hora exata e sobre @Deprecated, onde mostro que o construtor sem argumentos é depreciado. 
+Criei um construtor incluindo somente os itens obrigatórios, pois informação obrigatória se passa no construtor e criei um método ToString para leitura.
+Detalhe que retirei “Autor” do ToString, para não quebrar o Json. 
+Não criei getters e setters, pois até então não está sendo demandado e cada linha de código merece ser escrita.
+
+
+
+AutorRequest: Criei essa classe para proteger a classe autor. 
+Ela é uma parecida, mas não idêntica, pois trás somentes os itens obrigatórios que serão passados. 
+O construtor dela é super, para mostrar que chama o construtor da classe mãe. 
+Foi criado também um modelo, para mostrar a forma que deve ser impresso( no caso nome, email, descrição) e mais tarde um get de email, pois email não pode ser duplicado.
+
+AutorController: Essa classe iniciei anotando com @RestController (que é uma combinação das annotations Controller e ResponseBody,
+para mostrar que está é um Api Rest. Prefiro colocar o endereço @RequestMapping, onde serão processadas as requisições. 
+Nessa classe injetei com @PersistenceContext, que funciona como um @Autowired, mas para entity manager que faz operações na base de dados.
+Inclui também a Anottation PostMapping para salvar na base de dados, coloquei @Transactional que geralmente acompanha o entity manager para 
+mostrar que é uma transação e só deve ser salva se atender a todos os requisitos e o @ResponseStatus, que retorna indicando se a operação foi sucesso. 
+Para converter Autor Request em Autor, as duas classes anteriores, criei uma public String save, com as annotations RequestBody e @Valid, onde @RequestyBody,
+tem a função de dizer que a string que iremos retornar é o corpo da nossa resposta e a annotation valid para mostrar que o dado passado precisa ser valido,
+dentro dessa string criei uma variável request, que abaixo request.ToModel, ou seja, requer o modelo para retornar.
+O manager.persist(autor), pois persist em entitymanager e quer dizer salvar e após isso retor autor.toString(); 
+Posteriormente nessa classe, foram criados duas annotations @AutoWired para injetatar o validador de email e o @InitBinder, que é uma annotation 
+que identifica os métodos que inicializam o WebDatabinder, para preencher os argumentos do objeto de comando. 
+O WebDataBinder, chama a javaclass e pergunta qual o formato de validação.
+@InitBinder
+public void init (WebDataBinder binder) { binder.addValidators(emailvalidator); }
+
+EmailValidator -Nessa classe anotei com um @Component para ser detectada automaticamente no momento da compilação e implementei o Validator, 
+que é uma interface do spring que trás métodos de validação. Pedi para implementar os métodos e vieram dois. 
+Um primeiro que booleano, que pergunta se a classe suporta a validação. Se sim, ela manda executar. 
+Ela retorna a Classe requerida, no caso AutorRequest.class.isAssignableFrom(clazz) que quer dizer se é classe mãe. 
+Se for, ela aceita a validação. O segundo método trata da validação. Se tem erros, ele retorna. 
+Ele tem um validate que basicamente pergunta se a opção autor, trata o novo dado como um possível autor e faz o método , 
+se o possível autor já tem o email cadastrado e pega este email. Se o email já está presente, ele rejeita e retorna uma mensagem que podemos editar com o email referido.
+
+Autors (Interface/@Repository)- Tenho a pratica de apenas adicionar um "S" nas interfaces Detalhe para essa interface, 
+onde tinha um vício de criar uma java class e passar direto para a interface. Como injetei o entitymanager no Controller, 
+ela não havia sido demandada até agora. Mas como precisava de um método para transação no banco de dados de verificação do email, 
+ela foi feita estendendo um CrudRepository. Após a criação da interface,fiz a injeção dela com @Autowired em Email Validator.
+
+Categoria - Categoria apesar de parecida com a classe autor, foi feita de outra forma. 
+A parte de nome foi igual, começando a mudar no construtor, onde não foi necessário chamar um construtor vazio, 
+por ter apenas um atributo (nome). O construtor com o atributo obrigatório foi chamado, getter e setter adicionado assim como ToString.
+
+CategoriaRequest- Criada quase idêntica a categoria para fazer a proteção da mesma,  apenas com um setter e uma public String getNome() { return this.nome;.
+
+CategoriaController - Segui o mesmo modelo da AutorController com a diferença que  o tratamento de erro para nome duplicado foi feito de forma diferente, 
+não necessitando do @InitBinder e nem injetar  um validador, pois agora os erros serão tratados de forma única na Api com uma annotation customizada.
+
+UniqueValue - É uma annotation customizada onde trás a anotação @Documented, @Constraint (para criação da constraint informado qual a classe de validação, 
+no caso “UniqueValueValidator), @Target para mostrar que a informação é um campo, @Retention para mostrar que a annotation deve rodar em tempo de runtime. 
+Dentro da public@interface UniqueValue, podemos colocar a mensagem de quando a annotation for chamada e os outros dados são padrões (acredito eu), 
+estando presente em outras annotations. De diferente adicionei uma String fieldName() e um Class<?>domainClass para trabalhar com elas na UniqueValueValidator.
+
+UniqueValueValidator - A public class UniqueValueValidator implementa a ConstraintValidator que recebe dois tipos parametrizados. O primeiro a Annotation que
+estamos nos referindo e um segundo tipo que especifica se é um int, string, etc.. no nosso caso é um object. É necessário mandar implementar os métodos que são dois.
+O primeiro um initialize, onde criei duas variáveis a DomainAttribute = params.fieldName() que se recordam, adicionei na annotation e klass = params.domainClass(),
+que também anotei na annotation.
+
+Antes do parâmetro ser iniciado, é necessário especificar que domainAttribute é uma String e que klass é uma classe. Além disso injetamos o EntityManager.
+O segundo método é onde a mágica acontece. É um método booleano que verifica se está válido, chamando o Object e a ConstraintValidatorContext.
+É necessário criar uma Query, com um createQuery, chamado o manager para verificação no banco de dados. Basicamente é pego o nome que entrou, 
+mais a classe que está entrando. Se tudo está válido(são iguais), a annotation é chamada e devolve a mensagem de erro.
+
+Padronização de Erros- Handler Advice a ApiErrors
+ApiErrorrs - Uma javaClass com uma lista de String do pacote JavaUtil chamada de erros. Um exemplo: Quando eu lançar algum erro, uma série de validações, 
+eu posso enviar o objeto padronizado que contém um array de erros que são as Strings. É necessário criar um construtor para receber a mensagem e a apiErrors 
+retornar um array de erros. O construtor recebe uma única mensagem. 
+public ApiError(String mensagemErro) {this.errors =Arrays.asList(mensagemErro)- Esse método do java util, tem um método estático asList, que recebe um objeto
+(mensagemErro)  que transforma em um arraylist (Arrays.asList(mensagemErro). É criado um método get, para gerar um get errors, para obtermos os erros
+quando estivermos na Api.
+
+HandlerAdvice - Anotamos essa java class com @ControllerAdvice que permite tratar exceções em todo a Api. Anotei com @ExceptionHandler que anota o 
+método para tratar erro, que toda vez que a api passa um (MethodArgumentNotValidException do pacote spring framework web bind, 
+que é uma exception lançada quando queremos enviar um argumento que não é válido ), ele pega a mensagem de erro com um get e retorna a mensagem de erro. 
+Anotei também com @ResponseStatus para retornar o BadRequest. Essa excepetion tem o ex.getBingResult() que carrega as mensagens, os dados de validação, 
+o que foi que falhou. Ele tem um método getAllErrors(), chamei um map, dei um apelido de e para erro e nomeei ele para mensagem de erro ero.getDefaultMessage,
+que vai retornar a mensagem que especifiquei na validação. Tem um Collect para coletar toda as mensagens (toList). É necessário ter um construtor
+que recebe String na ApiErrors;
+
+. CDD/ técnicas de código;
+sobre CDD entendi da seguinte forma, se é facil de entender, é facil de manter. Eu compreendi que devo sempre pensar em como o código será interpretado.
+Até vinculei com uma frase da época de publicitário (Propaganda boa, não precisa de explicação), no caso (código bom, não precisa de explicação). 
+O CDD trás mais dominio de negócio. Quanto a pontuação, tenho decorado mesmo e pensando sempre no planejamento (Fixar um limite que não posso ultrapssar).
+As dicas, dividi em tópicos. Fiz anotações no caderno e agora as fixei na parede. Coloquei as que consigo interpretar e explicar.Tem algumas que ainda não
+consigo explicar se me perguntarem, como:(Só alteramos estados de referência que criamos, pensar no lado negativo de cada decisão (que é facil captar a
+mensagem), mas como sou bem otimista, preciso encontrar um ponto entre validar os positivos e anular essa validação por causa de pontos negativos, mas acredito
+que a equipe, saber ouvir, balanceiam essa decisão). 
+No mais, quero fixar expert em CDD, considero um quarto "produto" da Zup. Tenho essa sensibilidade de olhar para onde a empresa está olhando.
+Quanto as dicas:
+. Não fazer o código com pressa, a prioridade é funcionar;
+. Planejar/ Imaginar antes de aplicar;
+. Entender o contexto, restrições, necessidades;
+. Executar o código o mais rápido possível;
+. O melhor código é aquele que não precisa ser escrito;
+. Os sistemas devem funcionar da maneira mais simples possível;
+. Separar as bordas externas do sistema do núcleo (não ligamos parâmetros de requisição externa com objetos de domínio diretamente;
+. Criar classes para recebimento de parâmetros (facilita a manutenção e deixa o código mais seguro);
+. Utilizar as classes conversoras (sempre que possível) no padrão do mercado;
+. Não executar o código sem garantir que os parâmetros de entrada, estão válidos. Com a borda mais externa, o cuidado deve ser redobrado.
+. Informação obrigatória pelo construtor é aquela que é natural;
+. Construtores são usados para criar objetos no estado válido;
+. Deixar pistas podem ajudar a próxima pessoa que pegar o código;
+. Melhor quebrar um endpoint, do que uma classe inteira;
+. Deixar pistas não é ruim.
+. Se é obrigatório, gere a obrigação.
+
+- Sobre ser melhor estudante - Sou muito focado e gosto de padronizar tudo. Trabalho muito com anotações, pois o que anoto aprendo ou decoro
+ou sei exatamento em qual campo do caderno anotei. Tenho ótima memoria fotografica. Quando aos codigos, tenho tentando entender o caminho percorrido,
+e o ponto de vista. Para descobrir o caminho tenho reescrito o codigo, as vezes entrando e saindo das classes, atento aos avisos de erro, pois assim percebi,
+que se estou fazendo o fluxo natural, esse aviso de erro não aparece. Quero padronizar meu pensamento. 
+Além do cadeno no Bootcamp adotei um arquivo no word, pois tenho feito um dicionario de Annotations e comandos, assim como uma tabela de contagem do CDD.
+Tenho gostado bastante. Conheci Java no dia 04/08/2020, estou satisfeito com minha evolução. Uma coisa que não apliquei bem e quero melhorar nas proximas
+semanas é enviar a explicação para mim mesmo em formato de aúdio. Apesar de saber organizar as minhas ideias, quando falo improvizo muito, quero ter
+um pensamento mais lógico quanto a código.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
